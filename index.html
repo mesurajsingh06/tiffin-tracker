@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0" />
+<title>Tiffin Tracker</title>
+<meta name="description" content="Track your daily tiffin meals, running balance, and payments." />
+
+<!-- PWA -->
+<link rel="manifest" href="./manifest.json" />
+<meta name="theme-color" content="#2563EB" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Tiffin" />
+<link rel="apple-touch-icon" href="./icons/icon-192.png" />
+<link rel="icon" href="./icons/icon-192.png" />
+
+<!-- Tailwind CDN -->
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        fontFamily: {
+          sans: ['-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'Roboto', '"Helvetica Neue"', 'Arial', 'sans-serif'],
+        },
+        colors: {
+          brand: { 50:'#eff6ff', 100:'#dbeafe', 500:'#3b82f6', 600:'#2563eb', 700:'#1d4ed8' },
+        }
+      }
+    }
+  }
+</script>
+
+<style>
+  /* System-font stack only: keeps the app fully readable offline (no external font request). */
+  html { -webkit-tap-highlight-color: transparent; }
+  body { overscroll-behavior-y: none; }
+  .toggle-btn { transition: all .15s ease; }
+  .toggle-btn[data-active="true"] { transform: translateY(-1px); }
+  ::-webkit-scrollbar { width: 0; height: 0; }
+  .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+  .safe-top { padding-top: env(safe-area-inset-top); }
+  @keyframes toast-in { from { opacity:0; transform: translate(-50%, 10px);} to {opacity:1; transform: translate(-50%,0);} }
+  #toast.show { animation: toast-in .18s ease-out forwards; }
+</style>
+</head>
+<body class="bg-gray-100 font-sans text-gray-900 antialiased">
+
+<div class="max-w-md mx-auto min-h-screen bg-gray-100 relative">
+
+  <!-- ===== Header / Dashboard ===== -->
+  <header class="sticky top-0 z-20 bg-white border-b border-gray-100 shadow-sm safe-top">
+    <div class="px-4 pt-4 pb-4">
+      <div class="flex items-center gap-2 mb-4">
+        <div class="w-9 h-9 rounded-xl bg-brand-600 flex items-center justify-center shrink-0">
+          <!-- tiffin icon -->
+          <svg viewBox="0 0 24 24" class="w-5 h-5 text-white" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 4c0-.6.6-1 1.5-1S12 3.4 12 4v1" />
+            <path d="M6 5h12v3H6z" />
+            <path d="M6 8h12v10a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V8z" />
+            <line x1="6" y1="12" x2="18" y2="12" />
+            <line x1="6" y1="15.5" x2="18" y2="15.5" />
+          </svg>
+        </div>
+        <div>
+          <h1 class="text-base font-bold leading-tight">Tiffin Tracker</h1>
+          <p class="text-[11px] text-gray-400 leading-tight">Meals &amp; payments, on one screen</p>
+        </div>
+      </div>
+
+      <!-- Pending balance -->
+      <div class="rounded-2xl p-4 shadow-md" id="balanceCard">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-[11px] uppercase tracking-wider text-white/80 font-semibold">Total Pending Balance</p>
+            <p id="balanceAmount" class="text-3xl font-extrabold text-white mt-1 tabular-nums">₹0</p>
+          </div>
+          <div id="balanceBadge" class="text-[11px] font-semibold text-white/90 bg-white/15 rounded-full px-3 py-1"></div>
+        </div>
+      </div>
+
+      <!-- Monthly summary -->
+      <div class="grid grid-cols-2 gap-3 mt-3">
+        <div class="bg-blue-50 rounded-xl p-3">
+          <p class="text-[11px] text-blue-700 font-medium">Spent in <span id="monthLabel1"></span></p>
+          <p id="monthSpent" class="text-lg font-bold text-blue-700 tabular-nums mt-0.5">₹0</p>
+        </div>
+        <div class="bg-green-50 rounded-xl p-3">
+          <p class="text-[11px] text-green-700 font-medium">Paid in <span id="monthLabel2"></span></p>
+          <p id="monthPaid" class="text-lg font-bold text-green-700 tabular-nums mt-0.5">₹0</p>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ===== Main content ===== -->
+  <main class="px-4 pt-5 pb-28 space-y-5">
+
+    <!-- Log a Day -->
+    <section id="log-section" class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 scroll-mt-4">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="font-bold text-gray-800">Log a Day</h2>
+        <input type="date" id="logDate" class="text-sm border border-gray-200 rounded-lg px-2 py-1.5 text-gray-600" />
+      </div>
+
+      <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Lunch</p>
+      <div class="grid grid-cols-2 gap-2 mb-4">
+        <button type="button" data-meal="lunch" data-value="100" class="toggle-btn meal-btn rounded-xl border-2 py-2.5 text-sm font-semibold">
+          Take Lunch <span class="block text-xs font-normal opacity-80">₹100</span>
+        </button>
+        <button type="button" data-meal="lunch" data-value="0" class="toggle-btn meal-btn rounded-xl border-2 py-2.5 text-sm font-semibold">
+          Skip Lunch <span class="block text-xs font-normal opacity-80">₹0</span>
+        </button>
+      </div>
+
+      <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Dinner</p>
+      <div class="grid grid-cols-2 gap-2 mb-4">
+        <button type="button" data-meal="dinner" data-value="70" class="toggle-btn meal-btn rounded-xl border-2 py-2.5 text-sm font-semibold">
+          Take Dinner <span class="block text-xs font-normal opacity-80">₹70</span>
+        </button>
+        <button type="button" data-meal="dinner" data-value="0" class="toggle-btn meal-btn rounded-xl border-2 py-2.5 text-sm font-semibold">
+          Skip Dinner <span class="block text-xs font-normal opacity-80">₹0</span>
+        </button>
+      </div>
+
+      <div class="flex items-center justify-between bg-gray-50 rounded-xl px-3 py-2.5 mb-3">
+        <span class="text-sm text-gray-500">Day total</span>
+        <span id="dayTotalPreview" class="font-bold text-gray-800 tabular-nums">₹170</span>
+      </div>
+
+      <button id="saveDay" type="button" class="w-full bg-brand-600 active:bg-brand-700 text-white font-semibold rounded-xl py-3 text-sm shadow-sm">
+        Save Day
+      </button>
+    </section>
+
+    <!-- Log a Payment -->
+    <section id="payment-section" class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 scroll-mt-4">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="font-bold text-gray-800">Log a Payment</h2>
+        <input type="date" id="paymentDate" class="text-sm border border-gray-200 rounded-lg px-2 py-1.5 text-gray-600" />
+      </div>
+
+      <label for="paymentAmount" class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2 block">Amount paid to vendor</label>
+      <div class="flex items-center gap-2 mb-3">
+        <span class="text-gray-400 font-semibold">₹</span>
+        <input id="paymentAmount" type="number" inputmode="numeric" min="0" step="1" placeholder="500"
+          class="flex-1 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+      </div>
+
+      <div class="flex gap-2 mb-4" id="quickAmounts">
+        <button type="button" data-amt="200" class="quick-amt flex-1 bg-gray-50 hover:bg-gray-100 text-gray-600 text-xs font-semibold rounded-lg py-2">₹200</button>
+        <button type="button" data-amt="500" class="quick-amt flex-1 bg-gray-50 hover:bg-gray-100 text-gray-600 text-xs font-semibold rounded-lg py-2">₹500</button>
+        <button type="button" data-amt="1000" class="quick-amt flex-1 bg-gray-50 hover:bg-gray-100 text-gray-600 text-xs font-semibold rounded-lg py-2">₹1000</button>
+      </div>
+
+      <button id="logPayment" type="button" class="w-full bg-green-600 active:bg-green-700 text-white font-semibold rounded-xl py-3 text-sm shadow-sm">
+        Log Payment
+      </button>
+    </section>
+
+    <!-- History -->
+    <section id="history-section" class="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 scroll-mt-4">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="font-bold text-gray-800">History</h2>
+        <button id="exportCsv" type="button" class="flex items-center gap-1.5 text-xs font-semibold text-brand-600 bg-brand-50 rounded-lg px-3 py-1.5">
+          <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 3v12" /><path d="M7 10l5 5 5-5" /><path d="M5 21h14" />
+          </svg>
+          Export CSV
+        </button>
+      </div>
+
+      <div id="historyList" class="space-y-2 max-h-[420px] overflow-y-auto pr-0.5">
+        <!-- rows injected by app.js -->
+      </div>
+
+      <p id="historyEmpty" class="hidden text-center text-sm text-gray-400 py-8">
+        No entries yet. Log your first day above.
+      </p>
+    </section>
+
+    <p class="text-center text-[11px] text-gray-400 pt-2">All data stays on this device (LocalStorage).</p>
+  </main>
+
+  <!-- ===== Bottom nav ===== -->
+  <nav class="fixed bottom-0 inset-x-0 z-20 bg-white border-t border-gray-200 safe-bottom">
+    <div class="max-w-md mx-auto grid grid-cols-3">
+      <a href="#log-section" data-nav="log-section" class="nav-btn flex flex-col items-center gap-1 py-2.5 text-gray-400">
+        <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+        <span class="text-[11px] font-medium">Log Day</span>
+      </a>
+      <a href="#payment-section" data-nav="payment-section" class="nav-btn flex flex-col items-center gap-1 py-2.5 text-gray-400">
+        <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+        <span class="text-[11px] font-medium">Payment</span>
+      </a>
+      <a href="#history-section" data-nav="history-section" class="nav-btn flex flex-col items-center gap-1 py-2.5 text-gray-400">
+        <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+        <span class="text-[11px] font-medium">History</span>
+      </a>
+    </div>
+  </nav>
+
+  <!-- Toast -->
+  <div id="toast" class="hidden fixed left-1/2 bottom-24 z-30 -translate-x-1/2 bg-gray-900 text-white text-sm font-medium px-4 py-2.5 rounded-full shadow-lg whitespace-nowrap"></div>
+
+</div>
+
+<script src="./app.js"></script>
+</body>
+</html>
